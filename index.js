@@ -3,6 +3,19 @@ import { config } from './config.js';
 import { messages } from './messageTemplates.js';
 import { GeminiService } from './geminiService.js';
 import { formatPlantInfo } from './formatHelper.js';
+const express = require('express');
+const app = express();
+
+// Set the port from the environment variable or default to 3000
+const port = process.env.PORT || 3000;
+
+app.get('/', (req, res) => {
+  res.send('Plant Identifier Bot is running...');
+});
+
+app.listen(port, () => {
+  console.log(`Plant Identifier Bot is running on port ${port}`);
+});
 
 const bot = new TelegramBot(config.telegramToken, { polling: true });
 const geminiService = new GeminiService();
