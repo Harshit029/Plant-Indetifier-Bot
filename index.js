@@ -3,7 +3,7 @@ import { config } from './config.js';
 import { messages } from './messageTemplates.js';
 import { GeminiService } from './geminiService.js';
 import { formatPlantInfo } from './formatHelper.js';
-const express = require('express');
+import express from 'express';
 const app = express();
 
 // Set the port from the environment variable or default to 3000
