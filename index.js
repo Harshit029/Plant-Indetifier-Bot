@@ -1,4 +1,4 @@
-// Open index.js and replace its content with this:
+// Open index.js and update the message handlers:
 import TelegramBot from 'node-telegram-bot-api';
 import { config } from './config.js';
 import { messages } from './messageTemplates.js';
@@ -24,7 +24,7 @@ const geminiService = new GeminiService();
 // Store user states
 const userStates = new Map();
 
-// Welcome message
+// Welcome message for /start
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
   bot.sendMessage(chatId, messages.welcome, { parse_mode: 'Markdown' });
@@ -35,12 +35,20 @@ bot.onText(/\/identify/, (msg) => {
   const chatId = msg.chat.id;
   userStates.set(chatId, 'identify');
   bot.sendMessage(chatId, "Send me a photo of the plant you'd like to identify!");
+  // Send welcome message after command
+  setTimeout(() => {
+    bot.sendMessage(chatId, messages.welcome, { parse_mode: 'Markdown' });
+  }, 1000);
 });
 
 bot.onText(/\/disease/, (msg) => {
   const chatId = msg.chat.id;
   userStates.set(chatId, 'disease');
   bot.sendMessage(chatId, "Send me a photo of the plant you'd like to diagnose!");
+  // Send welcome message after command
+  setTimeout(() => {
+    bot.sendMessage(chatId, messages.welcome, { parse_mode: 'Markdown' });
+  }, 1000);
 });
 
 // Handle incoming photos
@@ -70,8 +78,17 @@ bot.on('photo', async (msg) => {
     await processImage(chatId, photo.file_id, currentState);
     userStates.delete(chatId);
     
+    // Send welcome message after processing
+    setTimeout(() => {
+      bot.sendMessage(chatId, messages.welcome, { parse_mode: 'Markdown' });
+    }, 1000);
+    
   } catch (error) {
     handleError(chatId, error);
+    // Send welcome message after error
+    setTimeout(() => {
+      bot.sendMessage(chatId, messages.welcome, { parse_mode: 'Markdown' });
+    }, 1000);
   }
 });
 
@@ -87,61 +104,24 @@ bot.on('text', async (msg) => {
       const mode = choice === '1' ? 'identify' : 'disease';
       await processImage(chatId, userState.photoId, mode);
       userStates.delete(chatId);
+      // Send welcome message after processing
+      setTimeout(() => {
+        bot.sendMessage(chatId, messages.welcome, { parse_mode: 'Markdown' });
+      }, 1000);
     } else {
       bot.sendMessage(chatId, messages.invalidChoice);
+      // Send welcome message after invalid choice
+      setTimeout(() => {
+        bot.sendMessage(chatId, messages.welcome, { parse_mode: 'Markdown' });
+      }, 1000);
     }
-  } else if (!msg.photo) {
+  } else if (!msg.photo && !msg.text.startsWith('/')) {
     bot.sendMessage(chatId, messages.noImage);
+    // Send welcome message for text messages
+    setTimeout(() => {
+      bot.sendMessage(chatId, messages.welcome, { parse_mode: 'Markdown' });
+    }, 1000);
   }
 });
 
-async function processImage(chatId, fileId, mode) {
-  await bot.sendMessage(chatId, messages.processing, { parse_mode: 'Markdown' });
-
-  const photoData = await bot.getFile(fileId);
-  const response = await fetch(
-    `https://api.telegram.org/file/bot${config.telegramToken}/${photoData.file_path}`
-  );
-  
-  if (!response.ok) {
-    throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`);
-  }
-  
-  const photoBuffer = Buffer.from(await response.arrayBuffer());
-
-  if (photoBuffer.length > 4 * 1024 * 1024) {
-    throw new Error('Image size too large. Please send a smaller image.');
-  }
-
-  let result;
-  if (mode === 'identify') {
-    result = await geminiService.identifyPlant(photoBuffer);
-    result = formatPlantInfo(result);
-  } else if (mode === 'disease') {
-    result = await geminiService.identifyDisease(photoBuffer);
-    result = formatDiseaseInfo(result);
-  }
-
-  if (!result) {
-    throw new Error('No information received from the API');
-  }
-
-  await bot.sendMessage(chatId, result, { parse_mode: 'Markdown' });
-}
-
-function handleError(chatId, error) {
-  console.error('Error processing image:', error);
-  
-  let errorMessage = messages.error;
-  if (error.message.includes('quota')) {
-    errorMessage = messages.quotaExceeded;
-  } else if (error.message.includes('size too large')) {
-    errorMessage = messages.imageTooLarge;
-  } else if (error.message.includes('invalid')) {
-    errorMessage = messages.invalidFormat;
-  }
-  
-  bot.sendMessage(chatId, errorMessage);
-}
-
-console.log('Enhanced Plant Identifier Bot is running...');
+// Rest of the code remains the same...
