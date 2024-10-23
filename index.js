@@ -123,5 +123,3 @@ bot.on('text', async (msg) => {
     }, 1000);
   }
 });
-
-// Rest of the code remains the same...
