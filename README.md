@@ -9,6 +9,7 @@ utilizes the Google Gemini API for AI detection.
 
 - **Plant Species Detection**: Upload an image of a plant to get its species name and more.
 - **User-Friendly Interface**: Easy to use Telegram bot for plant identification.
+- **Plant Disease Detection**: Upload an image of a plant to get Plant Diseasee and cure.
 
 ## Getting Started
 
