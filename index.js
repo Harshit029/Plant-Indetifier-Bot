@@ -1,13 +1,13 @@
-// Open index.js and update the message handlers:
+// index.js
 import TelegramBot from 'node-telegram-bot-api';
+import express from 'express';
 import { config } from './config.js';
 import { messages } from './messageTemplates.js';
 import { GeminiService } from './geminiService.js';
 import { formatPlantInfo, formatDiseaseInfo } from './formatHelper.js';
-import express from 'express';
-const app = express();
 
-// Set the port from the environment variable or default to 3000
+// Express server setup
+const app = express();
 const port = process.env.PORT || 3000;
 
 app.get('/', (req, res) => {
@@ -35,20 +35,12 @@ bot.onText(/\/identify/, (msg) => {
   const chatId = msg.chat.id;
   userStates.set(chatId, 'identify');
   bot.sendMessage(chatId, "Send me a photo of the plant you'd like to identify!");
-  // Send welcome message after command
-  setTimeout(() => {
-    bot.sendMessage(chatId, messages.welcome, { parse_mode: 'Markdown' });
-  }, 1000);
 });
 
 bot.onText(/\/disease/, (msg) => {
   const chatId = msg.chat.id;
   userStates.set(chatId, 'disease');
   bot.sendMessage(chatId, "Send me a photo of the plant you'd like to diagnose!");
-  // Send welcome message after command
-  setTimeout(() => {
-    bot.sendMessage(chatId, messages.welcome, { parse_mode: 'Markdown' });
-  }, 1000);
 });
 
 // Handle incoming photos
@@ -75,20 +67,58 @@ bot.on('photo', async (msg) => {
       });
     }
 
-    await processImage(chatId, photo.file_id, currentState);
+    // Send processing message
+    const processingMsg = await bot.sendMessage(chatId, messages.processing, { parse_mode: 'Markdown' });
+
+    // Get photo buffer
+    const photoData = await bot.getFile(photo.file_id);
+    const response = await fetch(`https://api.telegram.org/file/bot${config.telegramToken}/${photoData.file_path}`);
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`);
+    }
+    
+    const photoBuffer = Buffer.from(await response.arrayBuffer());
+
+    // Add size check
+    if (photoBuffer.length > 4 * 1024 * 1024) {
+      throw new Error('Image size too large');
+    }
+
+    // Process based on mode
+    let result, formattedResult;
+    if (currentState === 'identify') {
+      result = await geminiService.identifyPlant(photoBuffer);
+      formattedResult = formatPlantInfo(result);
+    } else {
+      result = await geminiService.diagnosePlant(photoBuffer);
+      formattedResult = formatDiseaseInfo(result);
+    }
+
+    // Delete processing message and send result
+    await bot.deleteMessage(chatId, processingMsg.message_id);
+    await bot.sendMessage(chatId, formattedResult, {
+      parse_mode: 'Markdown',
+      reply_to_message_id: msg.message_id
+    });
+
+    // Clear user state
     userStates.delete(chatId);
-    
-    // Send welcome message after processing
-    setTimeout(() => {
-      bot.sendMessage(chatId, messages.welcome, { parse_mode: 'Markdown' });
-    }, 1000);
-    
+
   } catch (error) {
-    handleError(chatId, error);
-    // Send welcome message after error
-    setTimeout(() => {
-      bot.sendMessage(chatId, messages.welcome, { parse_mode: 'Markdown' });
-    }, 1000);
+    console.error('Error processing image:', error);
+    
+    let errorMessage = messages.error;
+    if (error.message.includes('quota')) {
+      errorMessage = messages.quotaExceeded;
+    } else if (error.message.includes('size too large')) {
+      errorMessage = messages.imageTooLarge;
+    } else if (error.message.includes('invalid')) {
+      errorMessage = messages.invalidFormat;
+    }
+    
+    await bot.sendMessage(chatId, errorMessage);
+    userStates.delete(chatId);
   }
 });
 
@@ -102,24 +132,18 @@ bot.on('text', async (msg) => {
     
     if (choice === '1' || choice === '2') {
       const mode = choice === '1' ? 'identify' : 'disease';
-      await processImage(chatId, userState.photoId, mode);
-      userStates.delete(chatId);
-      // Send welcome message after processing
-      setTimeout(() => {
-        bot.sendMessage(chatId, messages.welcome, { parse_mode: 'Markdown' });
-      }, 1000);
+      userStates.set(chatId, mode);
+      
+      // Simulate photo message to reuse photo handling logic
+      await bot.emit('photo', {
+        chat: { id: chatId },
+        photo: [{ file_id: userState.photoId }],
+        message_id: msg.message_id
+      });
     } else {
       bot.sendMessage(chatId, messages.invalidChoice);
-      // Send welcome message after invalid choice
-      setTimeout(() => {
-        bot.sendMessage(chatId, messages.welcome, { parse_mode: 'Markdown' });
-      }, 1000);
     }
-  } else if (!msg.photo && !msg.text.startsWith('/')) {
+  } else if (!msg.text.startsWith('/')) {
     bot.sendMessage(chatId, messages.noImage);
-    // Send welcome message for text messages
-    setTimeout(() => {
-      bot.sendMessage(chatId, messages.welcome, { parse_mode: 'Markdown' });
-    }, 1000);
   }
 });
