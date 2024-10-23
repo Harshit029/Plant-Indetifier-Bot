@@ -1,4 +1,4 @@
-// Open formatHelper.js and replace its content with this:
+// formatHelper.js
 export const formatPlantInfo = (rawInfo) => {
   const sections = rawInfo.split('\n');
   let formattedMessage = "🌿 *Plant Identification Results*\n\n";
@@ -15,7 +15,7 @@ export const formatPlantInfo = (rawInfo) => {
 
 export const formatDiseaseInfo = (rawInfo) => {
   const sections = rawInfo.split('\n');
-  let formattedMessage = "🔬 *Plant Disease Analysis*\n\n";
+  let formattedMessage = "🔬 *Plant Health Analysis*\n\n";
   
   sections.forEach(section => {
     if (section.includes(':')) {
